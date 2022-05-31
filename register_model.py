@@ -84,7 +84,7 @@ def run(data_path, log_top):
     new_stage = "Staging"
     client.transition_model_version_stage(
         name=model_name,
-        version=mlatest_version.version,
+        version=latest_version.version,
         stage=new_stage,
         archive_existing_versions=True
     )
