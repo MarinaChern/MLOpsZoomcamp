@@ -16,6 +16,7 @@ EXPERIMENT_NAME = "random-forest-best-models"
 mlflow.set_tracking_uri("http://127.0.0.1:5000")
 mlflow.set_experiment(EXPERIMENT_NAME)
 mlflow.sklearn.autolog()
+MLFLOW_TRACKING_URI = "sqlite:///mlflow.db"
 
 SPACE = {
     'max_depth': scope.int(hp.quniform('max_depth', 1, 20, 1)),
@@ -50,7 +51,7 @@ def train_and_log_model(data_path, params):
 
 def run(data_path, log_top):
 
-    client = MlflowClient()
+    client = MlflowClient(tracking_uri=MLFLOW_TRACKING_URI)
 
     # retrieve the top_n model runs and log the models to MLflow
     experiment = client.get_experiment_by_name(HPO_EXPERIMENT_NAME)
@@ -65,10 +66,28 @@ def run(data_path, log_top):
 
     # select the model with the lowest test RMSE
     experiment = client.get_experiment_by_name(EXPERIMENT_NAME)
-    # best_run = client.search_runs( ...  )[0]
-
+    best_run = client.search_runs(
+        experiment_ids=experiment.experiment_id,
+        filter_string="metrics.test_rmse < 10",
+        run_view_type=ViewType.ACTIVE_ONLY,
+        max_results=2,
+        order_by=["metrics.test_rmse ASC"]
+    )[0]
+    
     # register the best model
-    # mlflow.register_model( ... )
+    model_name="nyc-taxi-regressor"
+    model_uri = f"runs:/{best_run.info.run_id}/model"
+    mlflow.register_model(model_uri=model_uri, name=model_name)
+    
+    # put latest to stage
+    latest_versions= client.get_latest_versions(name=model_name)[-1]
+    new_stage = "Staging"
+    client.transition_model_version_stage(
+        name=model_name,
+        version=mlatest_version.version,
+        stage=new_stage,
+        archive_existing_versions=True
+    )
 
 
 if __name__ == '__main__':
